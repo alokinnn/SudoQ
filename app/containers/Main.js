@@ -17,8 +17,6 @@ import {
 } from 'react-native';
 
 import DeviceInfo from 'react-native-device-info';
-import AV from 'leancloud-storage';
-import SplashScreen from 'rn-splash-screen';
 
 import {
   Size,
@@ -32,11 +30,13 @@ import {
 import {
   Store,
   sudoku,
-  I18n,
 } from '../utils';
 
 const formatTime = Timer.formatTime;
-const Record = AV.Object.extend('Record');
+
+const I18n = {
+  t: (a) => a,
+}
 
 class Main extends Component {
   state = {
@@ -47,7 +47,6 @@ class Main extends Component {
     fetching: false,
     showModal: false,
     showRecord: false,
-    showOnline: false,
   }
   puzzle = null
   solve = null
@@ -77,7 +76,6 @@ class Main extends Component {
       showModal: true,
     }, () => {
       this.nextPuzzle = sudoku.makepuzzle();
-      setTimeout(SplashScreen.hide, 300);
     });
     this.granted = await Store.get('granted');
   }
@@ -87,16 +85,12 @@ class Main extends Component {
   }
 
   render() {
-    const { puzzle, playing, initing, editing, showModal, showRecord, showOnline, fetching } = this.state;
+    const { puzzle, playing, initing, editing, showModal, showRecord, fetching } = this.state;
     const disabled = !playing && !this.fromStore;
     if (puzzle && !this.solve) this.solve = puzzle.slice();
     let height = 0;
     if (showRecord) {
       height = CellSize / 3 + CellSize * (this.records.length + 1);
-    }
-    let onlineHeight = 0;
-    if (showOnline) {
-      onlineHeight = CellSize / 3 + CellSize * (this.scores.length + 1);
     }
     return (
       <View style={styles.container} >
@@ -113,7 +107,7 @@ class Main extends Component {
           onInit={this.onInit} onErrorMove={this.onErrorMove} onFinish={this.onFinish} />
         <Modal animationType='slide' visible={showModal} transparent={true} onRequestClose={this.onCloseModal} >
           <View style={styles.modal} >
-            <View style={[styles.modalContainer, {marginTop: showOnline? -onlineHeight:0}]} >
+            <View style={[styles.modalContainer, {marginTop: 0}]} >
               {!showRecord&&<Text style={styles.title} >{I18n.t('name')}</Text>}
               {!showRecord&&<Text style={styles.about} >by Neo(nihgwu@live.com)</Text>}
               <Touchable disabled={disabled} style={styles.button} onPress={this.onResume} >
@@ -142,7 +136,7 @@ class Main extends Component {
                 </Touchable>
                 {showRecord&&<Text style={styles.recordText} onPress={this.onToggleOnline} >{I18n.t('onlinerank')}</Text>}
               </View>
-              <View style={{overflow: 'hidden', height: onlineHeight}} >
+              <View style={{overflow: 'hidden'}} >
                 {!!this.scores && this.scores.length > 0 &&
                   <Touchable style={styles.record} onPress={this.onToggleOnline} >
                     <View style={styles.triangle} />
@@ -182,7 +176,6 @@ class Main extends Component {
       playing: true,
       showModal: false,
       showRecord: false,
-      showOnline: false,
     }, () => {
       this.timer.start();
     });
@@ -271,7 +264,6 @@ class Main extends Component {
       playing: false,
       showModal: false,
       showRecord: false,
-      showOnline: false,
     });
   }
 
@@ -295,7 +287,6 @@ class Main extends Component {
       playing: false,
       showModal: false,
       showRecord: false,
-      showOnline: false,
     }, async() => {
       await Store.multiRemove('puzzle', 'solve', 'error', 'elapsed');
       this.puzzle = puzzle.slice();
@@ -306,7 +297,6 @@ class Main extends Component {
   onToggleRecord = () => {
     LayoutAnimation.easeInEaseOut();
     this.setState({
-      showOnline: this.state.showRecord ? false : this.state.showOnline,
       showRecord: !this.state.showRecord,
     });
   }
@@ -330,59 +320,7 @@ class Main extends Component {
       this.granted = true;
       Store.set('granted', true);
     }
-    if (!this.state.showOnline) {
-      try {
-        this.scores = null;
-        this.rank = null;
-        LayoutAnimation.easeInEaseOut();
-        this.setState({
-          fetching: true,
-        });
-        let query = new AV.Query('Record');
-        query.equalTo('uid', DeviceInfo.getUniqueID());
-        let score = await query.first();
-        if (!score || score.get('elapsed') > this.records[0]) {
-          if (!score) score = new Record();
-          else score = AV.Object.createWithoutData('Record', score.id);
-          score.set('elapsed', this.records[0]);
-          score.set('uid', DeviceInfo.getUniqueID());
-          score.set('model', DeviceInfo.getModel());
-          const result = await score.save();
-          if (!result || !result.id) {
-            this.setState({
-              fetching: false,
-            });
-            Alert.alert(I18n.t('error'), I18n.t('uploaderror'), [
-              { text: I18n.t('ok') },
-            ]);
-            return;
-          }
-        }
-        query = new AV.Query('Record');
-        query.ascending('elapsed');
-        query.limit(10);
-        this.scores = await query.find();
-        query = new AV.Query('Record');
-        query.lessThan('elapsed', this.records[0]);
-        this.rank = await query.count();
-        this.rank = this.rank + 1;
-        this.setState({
-          fetching: false,
-        });
-      } catch (e) {
-        this.setState({
-          fetching: false,
-        });
-        Alert.alert(I18n.t('error'), e.message || I18n.t('queryerror'), [
-          { text: I18n.t('ok') },
-        ]);
-        return;
-      }
-    }
     LayoutAnimation.easeInEaseOut();
-    this.setState({
-      showOnline: !this.state.showOnline,
-    });
   }
 
   onShowModal = () => {
@@ -404,7 +342,6 @@ class Main extends Component {
     this.timer.resume();
     this.setState({
       showRecord: false,
-      showOnline: false,
     }, () => {
       requestAnimationFrame(() => {
         this.setState({
