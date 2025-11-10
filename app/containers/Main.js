@@ -122,6 +122,10 @@ class Main extends Component {
                 <Image style={styles.buttonIcon} source={require('../images/shuffle.png')} />
                 <Text style={styles.buttonText} >{I18n.t('newgame')}</Text>
               </Touchable>
+                <Touchable style={styles.button} onPress={this.onCreateOnline} >
+                <Image style={styles.buttonIcon} source={require('../images/shuffle.png')} />
+                <Text style={styles.buttonText} >{I18n.t('newgameOnline')}</Text>
+              </Touchable>
               <Touchable style={styles.button} onPress={this.onToggleRecord} >
                 <Image style={styles.buttonIcon} source={require('../images/rank.png')} />
                 <Text style={styles.buttonText} >{I18n.t('weekrank')}</Text>
@@ -292,6 +296,48 @@ class Main extends Component {
       this.puzzle = puzzle.slice();
       Store.set('puzzle', this.puzzle);
     });
+  }
+
+  onCreateOnline = () => {
+    this.elapsed = null;
+    this.error = 0;
+    this.solve = null;
+    this.fromStore = false;
+    this.timer.reset();
+
+    const ws = new WebSocket('ws://sudoq.eu-north-1.elasticbeanstalk.com/ws');
+
+    ws.onopen = () => {
+      // connection opened
+      console.log("Conneciton opened");
+    };
+
+    ws.onmessage = e => {
+      // a message was received
+      let puzzle = JSON.parse(e.data.toString());
+      this.setState({
+        puzzle,
+        initing: true,
+        editing: false,
+        playing: false,
+        showModal: false,
+        showRecord: false,
+      }, async() => {
+        await Store.multiRemove('puzzle', 'solve', 'error', 'elapsed');
+        this.puzzle = puzzle.slice();
+        Store.set('puzzle', this.puzzle);
+      });
+    };
+
+    ws.onerror = e => {
+      // an error occurred
+      console.log(e.message);
+    };
+
+    ws.onclose = e => {
+      // connection closed
+      console.log(e.code, e.reason);
+    };
   }
 
   onToggleRecord = () => {
