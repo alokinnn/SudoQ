@@ -6,7 +6,6 @@ import {
   InteractionManager,
   LayoutAnimation,
   StyleSheet,
-  Platform,
   View,
 } from 'react-native';
 

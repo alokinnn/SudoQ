@@ -8,11 +8,9 @@ import React, {
 } from 'react';
 
 import {
-  LayoutAnimation,
   StyleSheet,
   AppState,
   Platform,
-  Linking,
   Share,
   Alert,
   Modal,
@@ -51,11 +49,7 @@ const Main = () => {
   const [editing, setEditing] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [showRecord, setShowRecord] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
-  const [records, setRecords] = useState([]);
-  const [scores, setScores] = useState(null); // kept for compatibility with original render
-  const [rank, setRank] = useState(null);     // kept for compatibility with original render
 
   // "Instance fields" -> refs
   const puzzleRef = useRef(null);
@@ -72,7 +66,6 @@ const Main = () => {
     setIniting(false);
     setPlaying(true);
     setShowModal(false);
-    setShowRecord(false);
     setIsOnline(false);
 
     timerRef.current?.start?.();
@@ -109,20 +102,8 @@ const Main = () => {
       // original code just returns here
       return;
     }
-
-    setRecords((prev) => {
-      if (prev.includes(elapsed)) return prev;
-
-      let list = [...prev, elapsed];
-      list.sort((a, b) => a - b);
-      list = list.slice(0, 5);
-      Store.set('records', list);
-      return list;
-    });
-
-    const newRecord = (records.length > 1 && elapsed === records[0]);
     // original had an Alert here, commented out
-  }, [records]);
+  }, []);
 
   const onToggleEditing = useCallback(() => {
     setEditing((prev) => !prev);
@@ -136,14 +117,12 @@ const Main = () => {
       setPuzzle(puzzleRef.current);
       setIniting(true);
       setShowModal(false);
-      setShowRecord(false);
       fromStoreRef.current = false;
       return;
     }
 
     timerRef.current?.resume?.();
     setShowModal(false);
-    setShowRecord(false);
   }, []);
 
   const onClear = useCallback(() => {
@@ -163,7 +142,6 @@ const Main = () => {
     setEditing(false);
     setPlaying(false);
     setShowModal(false);
-    setShowRecord(false);
   }, []);
 
   const onCreate = useCallback(() => {
@@ -187,7 +165,6 @@ const Main = () => {
     setEditing(false);
     setPlaying(false);
     setShowModal(false);
-    setShowRecord(false);
 
     (async () => {
       await Store.multiRemove('puzzle', 'solve', 'error', 'elapsed');
@@ -227,7 +204,6 @@ const Main = () => {
       setEditing(false);
       setPlaying(false);
       setShowModal(false);
-      setShowRecord(false);
 
       (async () => {
         await Store.multiRemove('puzzle', 'solve', 'error', 'elapsed');
@@ -257,36 +233,6 @@ const Main = () => {
     };
   }, []);
 
-  const onToggleRecord = useCallback(() => {
-    LayoutAnimation.easeInEaseOut();
-    setShowRecord((prev) => !prev);
-  }, []);
-
-  const onToggleOnline = useCallback(async () => {
-    if (!grantedRef.current) {
-      const upload = await new Promise((resolve) => {
-        Alert.alert(I18n.t('uploadrecord'), I18n.t('uploadmessage'), [
-          {
-            text: I18n.t('reject'),
-            onPress: () => resolve(false),
-          },
-          {
-            text: I18n.t('grant'),
-            onPress: () => resolve(true),
-          },
-        ]);
-      });
-
-      if (!upload) return;
-
-      grantedRef.current = true;
-      Store.set('granted', true);
-    }
-
-    LayoutAnimation.easeInEaseOut();
-    // original only animates, more logic may be elsewhere
-  }, []);
-
   const onShowModal = useCallback(() => {
     if (!initing) {
       if (solveRef.current) {
@@ -303,7 +249,6 @@ const Main = () => {
     }
 
     setShowModal(true);
-    setShowRecord(false);
 
     if (!nextPuzzleRef.current) {
       nextPuzzleRef.current = sudoku.makepuzzle();
@@ -312,47 +257,10 @@ const Main = () => {
 
   const onCloseModal = useCallback(() => {
     timerRef.current?.resume?.();
-    setShowRecord(false);
 
     requestAnimationFrame(() => {
       setShowModal(false);
     });
-  }, []);
-
-  const onShare = useCallback(() => {
-    const url = 'http://a.app.qq.com/o/simple.jsp?pkgname=com.liteneo.sudoku';
-    let message = I18n.t('sharemessage');
-    if (Platform.OS === 'android') {
-      message = message + ' \n' + url;
-    }
-
-    Share.share(
-      {
-        url,
-        message,
-        title: I18n.t('share'),
-      },
-      {
-        dialogTitle: I18n.t('share'),
-      },
-    ).catch(() => {
-      Alert.alert(I18n.t('sharefailed'));
-    });
-  }, []);
-
-  const onRate = useCallback(() => {
-    const link =
-      Platform.OS === 'android'
-        ? 'market://details?id=com.liteneo.sudoku'
-        : 'itms-apps://itunes.apple.com/cn/app/id1138612488?mt=8';
-
-    Alert.alert(I18n.t('rate'), I18n.t('ratemessage'), [
-      { text: I18n.t('cancel') },
-      {
-        text: I18n.t('confirm'),
-        onPress: () => Linking.openURL(link),
-      },
-    ]);
   }, []);
 
   const handleAppStateChange = useCallback(
@@ -367,14 +275,7 @@ const Main = () => {
   // componentDidMount / componentWillUnmount equivalent
   // 1) Run init ONCE (componentDidMount equivalent)
 useEffect(() => {
-  let isMounted = true;
-
   const init = async () => {
-    const storedRecords = (await Store.get('records')) || [];
-    if (isMounted) {
-      setRecords(storedRecords);
-    }
-
     const storedPuzzle = await Store.get('puzzle');
     if (storedPuzzle) {
       puzzleRef.current = storedPuzzle.slice();
@@ -392,7 +293,6 @@ useEffect(() => {
   init();
 
   return () => {
-    isMounted = false;
     if (wsRef.current) {
       wsRef.current.close();
     }
@@ -413,11 +313,6 @@ useEffect(() => {
   }
 
   const disabled = !playing && !fromStoreRef.current;
-
-  let recordHeight = 0;
-  if (showRecord) {
-    recordHeight = CellSize / 3 + CellSize * (records.length + 1);
-  }
 
   return (
     <View style={styles.container}>
@@ -462,12 +357,6 @@ useEffect(() => {
       >
         <View style={styles.modal}>
           <View style={[styles.modalContainer, { marginTop: 0 }]}>
-            {!showRecord && (
-              <Text style={styles.title}>{I18n.t('name')}</Text>
-            )}
-            {!showRecord && (
-              <Text style={styles.about}>by Neo(nihgwu@live.com)</Text>
-            )}
 
             <Touchable disabled={disabled} style={styles.button} onPress={onResume}>
               <Image
@@ -505,59 +394,6 @@ useEffect(() => {
               <Text style={styles.buttonText}>{I18n.t('newgameOnline')}</Text>
             </Touchable>
 
-            <Touchable style={styles.button} onPress={onToggleRecord}>
-              <Image
-                style={styles.buttonIcon}
-                source={require('../images/rank.png')}
-              />
-              <Text style={styles.buttonText}>{I18n.t('weekrank')}</Text>
-            </Touchable>
-
-            <View style={{ overflow: 'hidden', height: recordHeight }}>
-              <Touchable style={styles.record} onPress={onToggleRecord}>
-                <View style={styles.triangle} />
-                {records.length > 0 ? (
-                  records.map((item, idx) => (
-                    <Text key={idx} style={styles.recordText}>
-                      {formatTime(item)}
-                    </Text>
-                  ))
-                ) : (
-                  <Text style={styles.recordText}>{I18n.t('norecord')}</Text>
-                )}
-              </Touchable>
-
-              {showRecord && (
-                <Text style={styles.recordText} onPress={onToggleOnline}>
-                  {I18n.t('onlinerank')}
-                </Text>
-              )}
-            </View>
-
-            <View style={{ overflow: 'hidden' }}>
-              {!!scores && scores.length > 0 && (
-                <Touchable style={styles.record} onPress={onToggleOnline}>
-                  <View style={styles.triangle} />
-                  {scores.map((item, idx) => (
-                    <Text
-                      key={idx}
-                      style={[
-                        styles.recordText,
-                        idx + 1 === rank && styles.highlightText,
-                      ]}
-                    >
-                      {formatTime(item.get('elapsed'))}
-                    </Text>
-                  ))}
-                </Touchable>
-              )}
-              {!!rank && (
-                <Text style={styles.recordText} onPress={onToggleOnline}>
-                  {I18n.t('rank', { rank })}
-                </Text>
-              )}
-            </View>
-
             {fetching && (
               <Text style={[styles.recordText, styles.highlightText]}>
                 {I18n.t('loading')}
@@ -566,22 +402,10 @@ useEffect(() => {
           </View>
 
           <View style={styles.footer}>
-            <Touchable style={styles.button} onPress={onShare}>
-              <Image
-                style={[styles.buttonIcon, styles.disabled]}
-                source={require('../images/share.png')}
-              />
-            </Touchable>
             <Touchable style={styles.button} onPress={onCloseModal}>
               <Image
                 style={[styles.buttonIcon, styles.disabled]}
                 source={require('../images/close.png')}
-              />
-            </Touchable>
-            <Touchable style={styles.button} onPress={onRate}>
-              <Image
-                style={[styles.buttonIcon, styles.disabled]}
-                source={require('../images/rate.png')}
               />
             </Touchable>
           </View>
