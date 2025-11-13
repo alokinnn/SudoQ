@@ -29,9 +29,7 @@ class Cell extends Component {
   }
 
   setHighlight(highlight) {
-    this.setState({
-      highlight: highlight,
-    });
+    this.setState({ highlight });
   }
 
   setNumber(number, fixed) {
@@ -45,9 +43,10 @@ class Cell extends Component {
 
   setHintNumber(number) {
     let hints = this.state.hints;
-    if (hints.length == 6) hints.shift();
-    if (hints.includes(number)) hints = hints.filter(x => x != number);
+    if (hints.length === 6) hints.shift();
+    if (hints.includes(number)) hints = hints.filter(x => x !== number);
     else hints.push(number);
+
     this.setState({
       hints,
       editing: true,
@@ -68,48 +67,84 @@ class Cell extends Component {
 
   animate() {
     if (this.state.toggle) return;
-    this.setState({
-      toggle: true,
-    }, () => {
+
+    this.setState({ toggle: true }, () => {
       this.state.anim.setValue(0);
-      Animated.timing(this.state.anim, {
-        toValue: 1,
-        duration: 1000,
-        //useNativeDriver: true,
-      }).start(() => {
-        this.setState({
-          toggle: false,
-        });
+
+      Animated.sequence([
+        Animated.timing(this.state.anim, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(this.state.anim, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(this.state.anim, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(this.state.anim, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        this.setState({ toggle: false });
       });
     });
   }
 
-  onPress = (e) => {
-    this.props.onPress && this.props.onPress(this.props.index, this.state.number, this.state.fixed);
+  onPress = () => {
+    this.props.onPress &&
+      this.props.onPress(this.props.index, this.state.number, this.state.fixed);
   }
 
   render() {
     const { number, fixed, highlight, editing, hints, toggle } = this.state;
-    const rotate = this.state.anim.interpolate({
-      inputRange: [0, 1],
-      outputRange: ['0deg', '360deg'],
-    });
+
     const scale = this.state.anim.interpolate({
-      inputRange: [0, 0.1, 0.9, 1],
-      outputRange: [1, 1.1, 1.1, 1],
+      inputRange: [0, 1],
+      outputRange: [1, 1.28], // ⬅️ STRONGER ZOOM PULSE
     });
-    const transform = [{ rotate }, { scale }];
+
+    const transform = [{ scale }];
     const zIndex = toggle ? 100 : 0;
-    const filled = typeof(number) == 'number';
-    const text = filled ? (number + 1) : '';
+
+    const filled = typeof number === 'number';
+    const text = filled ? number + 1 : '';
     const hint = hints.map(x => x + 1).join('');
+
     return (
-      <Animated.View style={[styles.cell, filled&&styles.filledCell, fixed&&styles.fixedCell, highlight&&styles.highlightCell, {transform, zIndex}]} >
-        {editing?
-          <Text style={[styles.text, styles.editingText]} >{hint}</Text>:
-          <Text style={[styles.text, fixed&&styles.fixedText, highlight&&styles.highlightText]}>{text}</Text>
-        }
-        <Touchable activeOpacity={fixed?1:0.8} onPress={this.onPress} style={styles.handle} />
+      <Animated.View
+        style={[
+          styles.cell,
+          filled && styles.filledCell,
+          fixed && styles.fixedCell,
+          highlight && styles.highlightCell,
+          { transform, zIndex },
+        ]}
+      >
+        {editing ? (
+          <Text style={[styles.text, styles.editingText]}>{hint}</Text>
+        ) : (
+          <Text style={[
+            styles.text,
+            fixed && styles.fixedText,
+            highlight && styles.highlightText
+          ]}>
+            {text}
+          </Text>
+        )}
+
+        <Touchable
+          activeOpacity={fixed ? 1 : 0.8}
+          onPress={this.onPress}
+          style={styles.handle}
+        />
       </Animated.View>
     );
   }
@@ -148,12 +183,12 @@ const styles = StyleSheet.create({
     ...Platform.select({
       ios: {
         marginTop: CellSize / 12,
-        lineHeight: CellSize * 2 / 5
+        lineHeight: CellSize * 2 / 5,
       },
       android: {
         lineHeight: Math.floor(CellSize * 2 / 4),
       },
-    })
+    }),
   },
   filledCell: {
     backgroundColor: 'moccasin',
@@ -171,6 +206,5 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
 });
-
 
 export default Cell;
