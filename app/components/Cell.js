@@ -1,13 +1,18 @@
 'use strict';
 
-import React, { Component } from 'react';
+import React, {
+  useState,
+  useRef,
+  useImperativeHandle,
+  useCallback,
+  forwardRef,
+} from 'react';
 
 import {
   LayoutAnimation,
   StyleSheet,
   Animated,
   Platform,
-  View,
   Text,
 } from 'react-native';
 
@@ -17,138 +22,139 @@ import {
 } from './GlobalStyle';
 import Touchable from './Touchable';
 
-class Cell extends Component {
-  state = {
-    number: this.props.number,
-    hints: [],
-    editing: false,
-    highlight: false,
-    fixed: false,
-    toggle: false,
-    anim: new Animated.Value(0),
-  }
+const Cell = forwardRef((props, ref) => {
+  const [number, setNumberState] = useState(props.number);
+  const [hints, setHints] = useState([]);
+  const [editing, setEditing] = useState(false);
+  const [highlight, setHighlightState] = useState(false);
+  const [fixed, setFixed] = useState(false);
+  const [toggle, setToggle] = useState(false);
 
-  setHighlight(highlight) {
-    this.setState({ highlight });
-  }
+  const animRef = useRef(new Animated.Value(0));
 
-  setNumber(number, fixed) {
-    if (!fixed) LayoutAnimation.easeInEaseOut();
-    this.setState({
-      number,
-      fixed,
-      editing: false,
+  const setHighlight = useCallback((value) => {
+    setHighlightState(value);
+  }, []);
+
+  const setNumber = useCallback((num, isFixed) => {
+    if (!isFixed) LayoutAnimation.easeInEaseOut();
+    setNumberState(num);
+    setFixed(isFixed);
+    setEditing(false);
+  }, []);
+
+  const setHintNumber = useCallback((num) => {
+    setHints((prevHints) => {
+      let next = prevHints.slice();
+      if (next.length === 6) next.shift();
+      if (next.includes(num)) next = next.filter(x => x !== num);
+      else next.push(num);
+      return next;
     });
-  }
+    setEditing(true);
+  }, []);
 
-  setHintNumber(number) {
-    let hints = this.state.hints;
-    if (hints.length === 6) hints.shift();
-    if (hints.includes(number)) hints = hints.filter(x => x !== number);
-    else hints.push(number);
+  const reset = useCallback(() => {
+    setNumberState(props.number);
+    setHints([]);
+    setEditing(false);
+    setHighlightState(false);
+    setFixed(false);
+    setToggle(false);
+    animRef.current = new Animated.Value(0);
+  }, [props.number]);
 
-    this.setState({
-      hints,
-      editing: true,
+  const animate = useCallback(() => {
+    if (toggle) return;
+
+    setToggle(true);
+    animRef.current.setValue(0);
+
+    Animated.sequence([
+      Animated.timing(animRef.current, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(animRef.current, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(animRef.current, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(animRef.current, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setToggle(false);
     });
-  }
+  }, [toggle]);
 
-  reset() {
-    this.setState({
-      number: this.props.number,
-      hints: [],
-      editing: false,
-      highlight: false,
-      fixed: false,
-      toggle: false,
-      anim: new Animated.Value(0),
-    });
-  }
+  // Expose imperative methods to parent (Board uses ref.setHighlight(), etc.)
+  useImperativeHandle(ref, () => ({
+    setHighlight,
+    setNumber,
+    setHintNumber,
+    reset,
+    animate,
+  }), [setHighlight, setNumber, setHintNumber, reset, animate]);
 
-  animate() {
-    if (this.state.toggle) return;
+  const onPress = useCallback(() => {
+    if (props.onPress) {
+      props.onPress(props.index, number, fixed);
+    }
+  }, [props.onPress, props.index, number, fixed]);
 
-    this.setState({ toggle: true }, () => {
-      this.state.anim.setValue(0);
+  const scale = animRef.current.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.28], // stronger zoom pulse
+  });
 
-      Animated.sequence([
-        Animated.timing(this.state.anim, {
-          toValue: 1,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(this.state.anim, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(this.state.anim, {
-          toValue: 1,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(this.state.anim, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        this.setState({ toggle: false });
-      });
-    });
-  }
+  const transform = [{ scale }];
+  const zIndex = toggle ? 100 : 0;
 
-  onPress = () => {
-    this.props.onPress &&
-      this.props.onPress(this.props.index, this.state.number, this.state.fixed);
-  }
+  const filled = typeof number === 'number';
+  const text = filled ? number + 1 : '';
+  const hint = hints.map(x => x + 1).join('');
 
-  render() {
-    const { number, fixed, highlight, editing, hints, toggle } = this.state;
-
-    const scale = this.state.anim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [1, 1.28], // ⬅️ STRONGER ZOOM PULSE
-    });
-
-    const transform = [{ scale }];
-    const zIndex = toggle ? 100 : 0;
-
-    const filled = typeof number === 'number';
-    const text = filled ? number + 1 : '';
-    const hint = hints.map(x => x + 1).join('');
-
-    return (
-      <Animated.View
-        style={[
-          styles.cell,
-          filled && styles.filledCell,
-          fixed && styles.fixedCell,
-          highlight && styles.highlightCell,
-          { transform, zIndex },
-        ]}
-      >
-        {editing ? (
-          <Text style={[styles.text, styles.editingText]}>{hint}</Text>
-        ) : (
-          <Text style={[
+  return (
+    <Animated.View
+      style={[
+        styles.cell,
+        filled && styles.filledCell,
+        fixed && styles.fixedCell,
+        highlight && styles.highlightCell,
+        { transform, zIndex },
+      ]}
+    >
+      {editing ? (
+        <Text style={[styles.text, styles.editingText]}>{hint}</Text>
+      ) : (
+        <Text
+          style={[
             styles.text,
             fixed && styles.fixedText,
-            highlight && styles.highlightText
-          ]}>
-            {text}
-          </Text>
-        )}
+            highlight && styles.highlightText,
+          ]}
+        >
+          {text}
+        </Text>
+      )}
 
-        <Touchable
-          activeOpacity={fixed ? 1 : 0.8}
-          onPress={this.onPress}
-          style={styles.handle}
-        />
-      </Animated.View>
-    );
-  }
-}
+      <Touchable
+        activeOpacity={fixed ? 1 : 0.8}
+        onPress={onPress}
+        style={styles.handle}
+      />
+    </Animated.View>
+  );
+});
 
 const styles = StyleSheet.create({
   handle: {
