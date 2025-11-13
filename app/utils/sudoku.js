@@ -5,6 +5,7 @@
 var undefined;
 var _ = require('lodash');
 
+
 function makepuzzle(board) {
   // --- Normal puzzle generation phase ---
   var puzzle  = [];

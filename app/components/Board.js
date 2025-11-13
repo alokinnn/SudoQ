@@ -149,7 +149,7 @@ class Board extends Component {
         this.setState({
           index: -1,
         });
-        this.props.onFinish && this.props.onFinish();
+        this.props.onFinish && this.props.onFinish(this.puzzle);
         InteractionManager.runAfterInteractions(() => {
           this.animateAll();
         });

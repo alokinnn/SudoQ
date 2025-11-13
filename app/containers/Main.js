@@ -38,6 +38,8 @@ const I18n = {
   t: (a) => a,
 }
 
+var ws;
+
 class Main extends Component {
   state = {
     puzzle: null,
@@ -47,6 +49,7 @@ class Main extends Component {
     fetching: false,
     showModal: false,
     showRecord: false,
+    isOnline: false
   }
   puzzle = null
   solve = null
@@ -180,6 +183,7 @@ class Main extends Component {
       playing: true,
       showModal: false,
       showRecord: false,
+      isOnline: false,
     }, () => {
       this.timer.start();
     });
@@ -194,7 +198,11 @@ class Main extends Component {
     ]);
   }
 
-  onFinish = () => {
+  onFinish = (puzzlee) => {
+    // Alert.alert(this.state.isOnline + " ::: " + JSON.stringify(puzzlee) + " ::: " + (ws !== null && ws !== undefined).toString());
+    //if(this.state.isOnline){
+    DeviceInfo.getDeviceName().then((name) => ws?.send(JSON.stringify({username: name, puzzle: puzzlee})));
+    //}
     this.setState({
       playing: false,
     });
@@ -204,12 +212,12 @@ class Main extends Component {
     this.fromStore = false;
     const elapsed = this.timer.stop();
     if (this.error > 3) {
-      setTimeout(() => {
-        Alert.alert(I18n.t('congrats'), I18n.t('success') + formatTime(elapsed) + '\n' + I18n.t('fail'), [
-          { text: I18n.t('ok') },
-          { text: I18n.t('newgame'), onPress: this.onCreate },
-        ]);
-      }, 2000);
+      // setTimeout(() => {
+      //   Alert.alert(I18n.t('congrats'), I18n.t('success') + formatTime(elapsed) + '\n' + I18n.t('fail'), [
+      //     { text: I18n.t('ok') },
+      //     { text: I18n.t('newgame'), onPress: this.onCreate },
+      //   ]);
+      // }, 2000);
       return;
     }
     if (!this.records.includes(elapsed)) {
@@ -220,12 +228,12 @@ class Main extends Component {
     }
     const length = this.records.length;
     const newRecord = elapsed == this.records[0] && this.records.length > 1;
-    setTimeout(() => {
-      Alert.alert(I18n.t('congrats'), (newRecord ? I18n.t('newrecord') : I18n.t('success')) + formatTime(elapsed), [
-        { text: I18n.t('ok') },
-        { text: I18n.t('newgame'), onPress: this.onCreate },
-      ]);
-    }, 2000);
+    // setTimeout(() => {
+    //   Alert.alert(I18n.t('congrats'), (newRecord ? I18n.t('newrecord') : I18n.t('success')) + formatTime(elapsed), [
+    //     { text: I18n.t('ok') },
+    //     { text: I18n.t('newgame'), onPress: this.onCreate },
+    //   ]);
+    // }, 2000);
   }
 
   onToggleEditing = () => {
@@ -305,7 +313,9 @@ class Main extends Component {
     this.fromStore = false;
     this.timer.reset();
 
-    const ws = new WebSocket('ws://sudoq.eu-north-1.elasticbeanstalk.com/ws');
+    this.setState(a => ({...a, isOnline: true}));
+
+    ws = new WebSocket('ws://sudoq.eu-north-1.elasticbeanstalk.com/ws');
 
     ws.onopen = () => {
       // connection opened
@@ -313,10 +323,19 @@ class Main extends Component {
     };
 
     ws.onmessage = e => {
+      
+
       // a message was received
-      let puzzle = JSON.parse(e.data.toString());
+      let dataaa = JSON.parse(e.data.toString());
+
+      if(dataaa.username){
+        if(dataaa.isWinner){
+          Alert.alert('Winner', dataaa.username + " is winner");
+        }
+        return;
+      }
       this.setState({
-        puzzle,
+        puzzle: dataaa,
         initing: true,
         editing: false,
         playing: false,
@@ -324,7 +343,7 @@ class Main extends Component {
         showRecord: false,
       }, async() => {
         await Store.multiRemove('puzzle', 'solve', 'error', 'elapsed');
-        this.puzzle = puzzle.slice();
+        this.puzzle = dataaa.slice();
         Store.set('puzzle', this.puzzle);
       });
     };
@@ -332,11 +351,18 @@ class Main extends Component {
     ws.onerror = e => {
       // an error occurred
       console.log(e.message);
+
+      const msg = e?.message ?? e?.type ?? "unknown error";
+
+      const msg2 = msg + " ::: " + JSON.stringify(e);
+
+      Share.share({message: msg2, title: "error"});
     };
 
     ws.onclose = e => {
       // connection closed
       console.log(e.code, e.reason);
+      Share.share({message: JSON.stringify(e) + " ::: " + e.code + e.reason + e.wasClean, title: "close"});
     };
   }
 
